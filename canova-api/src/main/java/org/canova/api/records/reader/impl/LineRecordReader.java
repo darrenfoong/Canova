@@ -25,7 +25,6 @@ import org.apache.commons.io.LineIterator;
 import org.canova.api.conf.Configuration;
 import org.canova.api.io.data.Text;
 import org.canova.api.records.reader.RecordReader;
-import org.canova.api.split.FileSplit;
 import org.canova.api.split.InputSplit;
 import org.canova.api.split.StringSplit;
 import org.canova.api.writable.Writable;
@@ -51,6 +50,10 @@ public class LineRecordReader implements RecordReader {
     protected Configuration conf;
     protected InputSplit inputSplit;
 
+    private Collection<Writable> next;
+
+    private boolean lineRead = false;
+
     @Override
     public void initialize(InputSplit split) throws IOException, InterruptedException {
         if(split instanceof StringSplit) {
@@ -60,7 +63,8 @@ public class LineRecordReader implements RecordReader {
         else {
             this.locations = split.locations();
             if (locations != null && locations.length > 0) {
-                iter =  IOUtils.lineIterator(new InputStreamReader(locations[0].toURL().openStream()));
+                currIndex = 0;
+                iter =  IOUtils.lineIterator(new InputStreamReader(locations[currIndex].toURL().openStream()));
             }
         }
         this.inputSplit = split;
@@ -71,36 +75,60 @@ public class LineRecordReader implements RecordReader {
         initialize(split);
     }
 
-    @Override
-    public Collection<Writable> next() {
+    private void readLine() {
         List<Writable> ret = new ArrayList<>();
 
-        if(iter.hasNext()) {
+        if ( iter == null ) {
+            next = null;
+            return;
+        }
+
+        if ( iter.hasNext() ) {
             ret.add(new Text(iter.next()));
-            return ret;
-        }
-        else {
-            currIndex++;
-            try {
-                close();
-                iter = IOUtils.lineIterator(new InputStreamReader(locations[currIndex].toURL().openStream()));
-            } catch (IOException e) {
-                e.printStackTrace();
+            next = ret;
+        } else {
+            if ( currIndex < locations.length-1 ) {
+                currIndex++;
+
+                try {
+                    close();
+                    iter = IOUtils.lineIterator(new InputStreamReader(locations[currIndex].toURL().openStream()));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    next = null;
+                }
+
+                readLine();
+            } else {
+                next = null;
+                return;
             }
-
-            if(iter.hasNext()) {
-                ret.add(new Text(iter.next()));
-                return ret;
-            }
-
         }
-
-        throw new NoSuchElementException("No more elements found!");
     }
 
     @Override
     public boolean hasNext() {
-        return iter != null && iter.hasNext();
+        if ( !lineRead ) {
+            readLine();
+            lineRead = true;
+        }
+
+        return next != null;
+    }
+
+    @Override
+    public Collection<Writable> next() {
+        if ( !lineRead ) {
+            readLine();
+            lineRead = true;
+        }
+
+        if ( next == null ) {
+            throw new NoSuchElementException();
+        } else {
+            lineRead = false;
+            return next;
+        }
     }
 
     @Override

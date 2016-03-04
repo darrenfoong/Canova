@@ -43,20 +43,31 @@ public class LineReaderTest {
 
     @Test
     public void testLineReader() throws Exception {
-        File tmp = new File("tmp.txt");
-        FileUtils.writeLines(tmp, Arrays.asList("1","2","3"));
-        InputSplit split = new FileSplit(tmp);
-        tmp.deleteOnExit();
+        File tmpdir = new File("tmpdir");
+        tmpdir.mkdir();
+
+        File tmp1 = new File("tmpdir/tmp1.txt");
+        File tmp2 = new File("tmpdir/tmp2.txt");
+        File tmp3 = new File("tmpdir/tmp3.txt");
+
+        FileUtils.writeLines(tmp1, Arrays.asList("1","2","3"));
+        FileUtils.writeLines(tmp2, Arrays.asList("4","5","6"));
+        FileUtils.writeLines(tmp3, Arrays.asList("7","8","9"));
+
+        InputSplit split = new FileSplit(tmpdir);
+
         RecordReader reader = new LineRecordReader();
         reader.initialize(split);
+
         int count = 0;
         while(reader.hasNext()) {
             assertEquals(1,reader.next().size());
             count++;
         }
 
-        assertEquals(3,count);
+        assertEquals(9, count);
 
+        FileUtils.deleteDirectory(tmpdir);
     }
 
 
